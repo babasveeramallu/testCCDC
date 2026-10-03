@@ -1,0 +1,1 @@
+.\first-hour.ps1 -Apply -RotatePasswords -DisableLegacyProtocols -KillPersistence -SetAccountPolicy -EnforceHostFirewall -DisableUsbStorage
