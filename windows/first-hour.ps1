@@ -9,6 +9,9 @@ param(
     [switch]$SetAccountPolicy,
     [switch]$EnforceHostFirewall,
     [switch]$DisableUsbStorage,
+    [switch]$RequireSmbSigning,
+    [switch]$DisableSpooler,
+    [switch]$ScopeSystemPorts,
     [string[]]$IncludeAccount = @(),
     [string[]]$ExcludeAccount = @(),
     [string[]]$DisableTask = @(),
@@ -31,6 +34,7 @@ $script:LeftAlone = [System.Collections.Generic.List[string]]::new()
 . (Join-Path $PSScriptRoot 'lib\Baseline.ps1')
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 . (Join-Path $PSScriptRoot 'lib\HostFirewall.ps1')
+. (Join-Path $PSScriptRoot 'lib\Hardening.ps1')
 . (Join-Path $PSScriptRoot 'lib\RestorePoint.ps1')
 . (Join-Path $PSScriptRoot 'lib\Sysinternals.ps1')
 . (Join-Path $PSScriptRoot 'lib\UsbStorage.ps1')
@@ -52,7 +56,7 @@ try {
     $isServer = ($os.ProductType -ne 1) -or ($installationType -match 'Server')
     $isHome = ($editionId -match 'Core' -and -not $isServer)
     $script:IsServerOs = $isServer
-    $writeRequested = $RotatePasswords -or $RotateBuiltInAdministrator -or $DisableLegacyProtocols -or $KillPersistence -or $SetAccountPolicy -or $EnforceHostFirewall -or $DisableUsbStorage -or $InstallSysmon
+    $writeRequested = $RotatePasswords -or $RotateBuiltInAdministrator -or $DisableLegacyProtocols -or $KillPersistence -or $SetAccountPolicy -or $EnforceHostFirewall -or $DisableUsbStorage -or $RequireSmbSigning -or $DisableSpooler -or $InstallSysmon
     if ($Apply -and $PlanOnly) { throw '-Apply and -PlanOnly cannot be used together.' }
     $applyChanges = $Apply -or ($writeRequested -and -not $PlanOnly)
 
@@ -98,6 +102,8 @@ try {
         if ($SetAccountPolicy) { Write-Log FLAG "PLAN ONLY: would set account policy via $(if ($computer.PartOfDomain) {'Active Directory default domain policy'} else {'net accounts + secedit local security policy'})." }
         if ($EnforceHostFirewall) { Write-Log FLAG "PLAN ONLY: would set all profile defaults inbound=Block, allow detected service listeners, and scope RDP/WinRM to $($ManagementRange -join ',')." }
         if ($DisableUsbStorage) { Write-Log FLAG 'PLAN ONLY: would set USBSTOR Start=4 after reporting its current state.' }
+        if ($RequireSmbSigning) { Write-Log FLAG 'PLAN ONLY: would require SMB signing on server and client.' }
+        if ($DisableSpooler) { Write-Log FLAG 'PLAN ONLY: would stop and disable the Print Spooler.' }
         if ($InstallSysmon) { Write-Log FLAG "PLAN ONLY: would install/update Sysmon from $SysinternalsPath with config $SysmonConfig." }
         Write-Log INFO 'Plan-only complete; no changes made. Remove -PlanOnly to execute the selected categories.'
         Write-Log INFO "Summary changed=0 flagged=$($script:Flags.Count) left-alone=0 report=$script:Report"
@@ -112,8 +118,10 @@ try {
         else { New-CCDCRestorePoint -Description "CCDC first-hour BEFORE $stamp" }
     }
     if ($applyChanges -and $SetAccountPolicy) { Set-CCDCAccountPolicy -IsDomainJoined ([bool]$computer.PartOfDomain) -ReportDirectory $ReportDirectory }
-    if ($applyChanges -and $EnforceHostFirewall) { Set-CCDCWindowsFirewall -ManagementRange $ManagementRange }
+    if ($applyChanges -and $EnforceHostFirewall) { Set-CCDCWindowsFirewall -ManagementRange $ManagementRange -ScopeSystemPorts:$ScopeSystemPorts }
     if ($applyChanges -and $DisableUsbStorage) { Set-CCDCUsbStorage }
+    if ($applyChanges -and $RequireSmbSigning) { Set-CCDCSmbSigning }
+    if ($applyChanges -and $DisableSpooler) { Disable-CCDCSpooler }
     if ($applyChanges -and $InstallSysmon) { Install-CCDCSysmon -Dir $SysinternalsPath -Config $SysmonConfig }
     if (($RotatePasswords -or $RotateBuiltInAdministrator) -and -not (Get-Command Get-LocalUser -ErrorAction SilentlyContinue)) {
         throw 'Get-LocalUser is unavailable in this host/session; refusing password changes.'
@@ -327,3 +335,4 @@ try {
     if ($script:Report) { Write-Log ERROR $message } else { Write-Error $message }
     exit 1
 }
+

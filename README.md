@@ -205,3 +205,18 @@ It parses scripts and runs helper/plan-only/fail-closed checks. It does not vali
 For Linux, first run `bash -n scripts/linux/first-hour.sh scripts/linux/apply-firewall.sh`, then use an isolated VM matching the target distribution for audit/plan tests. PAM policy is distribution-specific, and nftables apply should only be exercised with console access and rollback verified.
 
 After changes, inspect the report directory specified for the run. Reports may contain sensitive account, host, service, task, or configuration information; restrict access and handle them as sensitive operational data.
+
+## Extra hardening switches (first-hour.ps1)
+
+- `-RequireSmbSigning` requires SMB signing on server and client. Old SMB clients/NAS may fail.
+- `-DisableSpooler` stops and disables Print Spooler.
+- `-ScopeSystemPorts` (with `-EnforceHostFirewall`) limits SMB/RPC/dynamic-port allows to `-ManagementRange` instead of Any.
+- `auto-harden.ps1` enables all three by default (`-ScopeSystemPorts` on non-servers only); use `-KeepSpooler` to skip the Spooler change.
+
+## Passwords and what to watch for
+
+Nothing rotates passwords automatically. To rotate, run:
+`.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount kali -ExcludeAccount scoring -ExcludeAccount breakglass`
+(needs typed confirmation). New passwords are written to `%LOCALAPPDATA%\CCDC\Reports\rotated-credentials-<stamp>.txt` (ACL-restricted). Record them securely, then delete the file.
+
+After hardening: reboot (RunAsPPL), remember the local password (auto-logon is off), confirm scored services still work, and expect NTLMv1/old SMB clients to fail.

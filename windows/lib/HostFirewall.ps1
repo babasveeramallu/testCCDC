@@ -1,6 +1,6 @@
 function Set-CCDCWindowsFirewall {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
-    param([Parameter(Mandatory)][string[]]$ManagementRange)
+    param([Parameter(Mandatory)][string[]]$ManagementRange, [switch]$ScopeSystemPorts)
     if (-not $ManagementRange.Count) { throw 'Host firewall requires -ManagementRange; no rules changed.' }
     foreach ($range in $ManagementRange) {
         $parts = $range.Split('/')
@@ -54,7 +54,8 @@ function Set-CCDCWindowsFirewall {
                     { $_ -in @(5985,5986) } { "CCDC-Host-WinRM-$($entry.Port)"; break }
                     default { "CCDC-Detected-$($entry.Protocol)-$($entry.Port)" }
                 }
-                $remote = if ($entry.Port -in @(3389,5985,5986)) { $ManagementRange } else { 'Any' }
+                $systemPort = $ScopeSystemPorts -and $entry.Port -in @(135,137,138,139,445,5040,5050,5353,7680,1900,3702) -or ($ScopeSystemPorts -and $entry.Port -ge 49152)
+                $remote = if ($entry.Port -in @(3389,5985,5986) -or $systemPort) { $ManagementRange } else { 'Any' }
                 $existingRule = Get-NetFirewallRule -PolicyStore PersistentStore -DisplayName $name -ErrorAction SilentlyContinue
                 if (-not $existingRule) {
                     $existingRule = New-NetFirewallRule -PolicyStore PersistentStore -DisplayName $name -Direction Inbound -Action Allow -Enabled True -Protocol $entry.Protocol -LocalPort $entry.Port -RemoteAddress $remote -Profile Domain,Private,Public
@@ -87,4 +88,5 @@ function Set-CCDCWindowsFirewall {
         }
     }
 }
+
 

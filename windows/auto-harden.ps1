@@ -12,6 +12,7 @@ Use -PlanOnly to preview. Password rotation and scheduled-task disabling are nev
 [CmdletBinding()]
 param(
     [switch]$PlanOnly,
+    [switch]$KeepSpooler,
     [switch]$SkipFirewall,
     [switch]$SkipUsb,
     [string[]]$ManagementRange = @(),
@@ -62,7 +63,9 @@ $mode = @(); if ($PlanOnly) { $mode = @('-PlanOnly') }
 $roleMode = @(); if (-not $PlanOnly) { $roleMode = @('-Apply') }
 $skipRp = @(); if ($isServer) { $skipRp = @('-SkipRestorePoint') }
 
-$firstHour = @('-SetAccountPolicy', '-DisableLegacyProtocols') + $mode + $skipRp + @('-ReportDirectory', $ReportDirectory)
+$firstHour = @('-SetAccountPolicy', '-DisableLegacyProtocols', '-RequireSmbSigning') + $mode + $skipRp + @('-ReportDirectory', $ReportDirectory)
+if (-not $KeepSpooler) { $firstHour += '-DisableSpooler' }
+if (-not $isServer) { $firstHour += '-ScopeSystemPorts' }
 if (-not $SkipUsb) { $firstHour += '-DisableUsbStorage' }
 if (-not $SkipFirewall) {
     if ($ManagementRange.Count -eq 0) { $ManagementRange = @(Get-LocalSubnets | Select-Object -Unique) }
@@ -88,3 +91,5 @@ Write-Step 'Summary'
 $results | ForEach-Object { Write-Host "  $_" }
 Write-Host "Reports: $ReportDirectory"
 Write-Host 'Not automatic: password rotation (-RotatePasswords) and disabling tasks (-KillPersistence); -RequireFtpTls needs a certificate. A reboot may be required.'
+
+
