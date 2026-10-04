@@ -55,11 +55,11 @@ function Set-CCDCAccountPolicy {
             throw "net accounts failed: $netOutput; attempted secedit restore from $backup."
         }
         Write-Log CHANGE 'Applied local net accounts and secedit policy.'
-        $netVerify = & $net.Source accounts 2>&1
+        $netVerify = (& $net.Source accounts 2>&1 | ForEach-Object { "$_" }) -join [Environment]::NewLine
         $verifyTemplate = Join-Path $ReportDirectory "account-policy-verify-$stamp.inf"
         & $secedit.Source /export /cfg $verifyTemplate /areas SECURITYPOLICY | Out-Null
         $verifyText = Get-Content -LiteralPath $verifyTemplate -Raw
-        Write-Log INFO "net accounts verification:`n$($netVerify -join [Environment]::NewLine)"
+        Write-Log INFO "net accounts verification:`n$netVerify"
         if ($netVerify -notmatch 'Minimum password length:\s+8' -or $netVerify -notmatch 'Maximum password age \(days\):\s+60' -or $netVerify -notmatch 'Length of password history maintained:\s+5' -or $netVerify -notmatch 'Lockout threshold:\s+5' -or $netVerify -notmatch 'Lockout duration \(minutes\):\s+30' -or $verifyText -notmatch '(?m)^PasswordComplexity\s*=\s*1') {
             & $secedit.Source /configure /db (Join-Path $ReportDirectory "rollback-verify-$stamp.sdb") /cfg $backup /areas SECURITYPOLICY /quiet | Out-Null
             throw "Local account policy verification failed; attempted restore from $backup. Inspect secedit export and net accounts output."
