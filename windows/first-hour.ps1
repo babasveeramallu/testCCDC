@@ -1,6 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
     [switch]$Apply,
+    [switch]$PlanOnly,
     [switch]$RotatePasswords,
     [switch]$RotateBuiltInAdministrator,
     [switch]$DisableLegacyProtocols,
@@ -51,6 +52,9 @@ try {
     $isServer = ($os.ProductType -ne 1) -or ($installationType -match 'Server')
     $isHome = ($editionId -match 'Core' -and -not $isServer)
     $script:IsServerOs = $isServer
+    $writeRequested = $RotatePasswords -or $RotateBuiltInAdministrator -or $DisableLegacyProtocols -or $KillPersistence -or $SetAccountPolicy -or $EnforceHostFirewall -or $DisableUsbStorage -or $InstallSysmon
+    if ($Apply -and $PlanOnly) { throw '-Apply and -PlanOnly cannot be used together.' }
+    $applyChanges = $Apply -or ($writeRequested -and -not $PlanOnly)
 
     Write-Log INFO "OS=$($os.Caption); product=$productName; editionId=$editionId; installationType=$installationType; server=$isServer; home=$isHome"
     if ($computer.PartOfDomain) {
@@ -59,13 +63,13 @@ try {
         Write-Log INFO "Membership=standalone workgroup; workgroup=$($computer.Workgroup)."
     }
     Write-Log INFO "PowerShell=$($PSVersionTable.PSVersion); script syntax target=Windows PowerShell 5.1+"
-    Write-Log INFO "Run mode=$(if ($Apply) {'apply'} else {'audit-only'}); report=$script:Report"
+    $runMode = if (-not $writeRequested) { 'audit-only' } elseif ($applyChanges) { 'apply' } else { 'plan-only' }
+    Write-Log INFO "Run mode=$runMode; report=$script:Report"
 
     if (($RotatePasswords -or $RotateBuiltInAdministrator) -and ($IncludeAccount.Count -eq 0 -or @($ExcludeAccount | Sort-Object -Unique).Count -lt 2)) {
         throw 'Password rotation plan/apply needs explicit -IncludeAccount values and at least two distinct scoring/service/break-glass exclusions.'
     }
     if ($KillPersistence -and $DisableTask.Count -eq 0) { throw '-KillPersistence plan/apply requires exact -DisableTask task paths.' }
-    $writeRequested = $RotatePasswords -or $RotateBuiltInAdministrator -or $DisableLegacyProtocols -or $KillPersistence -or $SetAccountPolicy -or $EnforceHostFirewall -or $DisableUsbStorage -or $InstallSysmon
     if ($InstallSysmon -and (-not $SysinternalsPath -or -not $SysmonConfig)) { throw '-InstallSysmon requires -SysinternalsPath and -SysmonConfig.' }
     if ($EnforceHostFirewall) {
         if ($ManagementRange.Count -eq 0) { throw '-EnforceHostFirewall requires -ManagementRange CIDR(s); no firewall changes made.' }
@@ -85,7 +89,7 @@ try {
     Write-Log INFO 'Collecting read-only baseline before any change.'
     Get-CCDCBaseline -IsDomainJoined ([bool]$computer.PartOfDomain) -Path (Join-Path $ReportDirectory "baseline-before-$stamp.json")
     Save-CCDCSysinternalsSnapshot -Dir $SysinternalsPath -Tag "before-$stamp" -OutDir $ReportDirectory
-    if ($writeRequested -and -not $Apply) {
+    if ($writeRequested -and -not $applyChanges) {
         if (-not $SkipRestorePoint) { Write-Log FLAG 'PLAN ONLY: would create a restore point before and after apply.' }
         if ($RotatePasswords) { foreach ($name in $IncludeAccount) { Write-Log FLAG "PLAN ONLY: would consider password rotation for explicitly selected local account $name; service/task dependencies and exclusions are rechecked on apply." } }
         if ($RotateBuiltInAdministrator) { Write-Log FLAG 'PLAN ONLY: would rotate the built-in Administrator last, after other selected accounts.' }
@@ -95,7 +99,7 @@ try {
         if ($EnforceHostFirewall) { Write-Log FLAG "PLAN ONLY: would set all profile defaults inbound=Block, allow detected service listeners, and scope RDP/WinRM to $($ManagementRange -join ',')." }
         if ($DisableUsbStorage) { Write-Log FLAG 'PLAN ONLY: would set USBSTOR Start=4 after reporting its current state.' }
         if ($InstallSysmon) { Write-Log FLAG "PLAN ONLY: would install/update Sysmon from $SysinternalsPath with config $SysmonConfig." }
-        Write-Log INFO 'Plan-only complete; no changes made. Add -Apply to execute the selected categories.'
+        Write-Log INFO 'Plan-only complete; no changes made. Remove -PlanOnly to execute the selected categories.'
         Write-Log INFO "Summary changed=0 flagged=$($script:Flags.Count) left-alone=0 report=$script:Report"
         exit 0
     }
@@ -103,14 +107,14 @@ try {
         $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
         if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'Applying changes requires an elevated administrator session.' }
     }
-    if ($Apply -and $writeRequested) {
+    if ($applyChanges -and $writeRequested) {
         if ($SkipRestorePoint) { Write-Log FLAG 'Restore point skipped by -SkipRestorePoint.' }
         else { New-CCDCRestorePoint -Description "CCDC first-hour BEFORE $stamp" }
     }
-    if ($Apply -and $SetAccountPolicy) { Set-CCDCAccountPolicy -IsDomainJoined ([bool]$computer.PartOfDomain) -ReportDirectory $ReportDirectory }
-    if ($Apply -and $EnforceHostFirewall) { Set-CCDCWindowsFirewall -ManagementRange $ManagementRange }
-    if ($Apply -and $DisableUsbStorage) { Set-CCDCUsbStorage }
-    if ($Apply -and $InstallSysmon) { Install-CCDCSysmon -Dir $SysinternalsPath -Config $SysmonConfig }
+    if ($applyChanges -and $SetAccountPolicy) { Set-CCDCAccountPolicy -IsDomainJoined ([bool]$computer.PartOfDomain) -ReportDirectory $ReportDirectory }
+    if ($applyChanges -and $EnforceHostFirewall) { Set-CCDCWindowsFirewall -ManagementRange $ManagementRange }
+    if ($applyChanges -and $DisableUsbStorage) { Set-CCDCUsbStorage }
+    if ($applyChanges -and $InstallSysmon) { Install-CCDCSysmon -Dir $SysinternalsPath -Config $SysmonConfig }
     if (($RotatePasswords -or $RotateBuiltInAdministrator) -and -not (Get-Command Get-LocalUser -ErrorAction SilentlyContinue)) {
         throw 'Get-LocalUser is unavailable in this host/session; refusing password changes.'
     }
@@ -308,7 +312,7 @@ try {
     }
 
     if (-not $writeRequested) { Write-Log INFO 'Audit-only complete; no changes requested.' }
-    if ($Apply -and $writeRequested) {
+    if ($applyChanges -and $writeRequested) {
         Get-CCDCBaseline -IsDomainJoined ([bool]$computer.PartOfDomain) -Path (Join-Path $ReportDirectory "baseline-after-$stamp.json")
         Save-CCDCSysinternalsSnapshot -Dir $SysinternalsPath -Tag "after-$stamp" -OutDir $ReportDirectory
         if (-not $SkipRestorePoint) {
@@ -323,4 +327,3 @@ try {
     if ($script:Report) { Write-Log ERROR $message } else { Write-Error $message }
     exit 1
 }
-

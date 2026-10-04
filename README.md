@@ -4,7 +4,7 @@ This directory contains Windows and Linux host audit/hardening scripts plus a Sp
 
 ## Safety Rules
 
-- Scripts are audit-only by default. On Windows, changes require `-Apply`; on Linux, changes require `--apply`.
+- Audits with no change-category switches are read-only. The Windows first-hour script applies selected categories by default; use `-PlanOnly` to preview them without changes. Windows role scripts still require `-Apply`, and Linux scripts require `--apply`.
 - A plan-only run is not a substitute for checking the target service and scoring requirements. Review the plan and report before applying.
 - Take a VM snapshot or backup before apply. Windows System Restore points are client-only and are not available on Server; Linux firewall apply has an automatic timed rollback only on systemd hosts.
 - Keep console access or a tested out-of-band recovery path. Firewall, authentication, TLS, account policy, and service changes can interrupt scoring or administration.
@@ -28,10 +28,10 @@ Audit only:
 Plan selected changes without applying:
 
 ```powershell
-.\windows\first-hour.ps1 -SetAccountPolicy -DisableLegacyProtocols -DisableUsbStorage
+.\windows\first-hour.ps1 -PlanOnly -SetAccountPolicy -DisableLegacyProtocols -DisableUsbStorage
 ```
 
-Example apply (replace every example value with the actual environment values first):
+Example apply (replace every example value with the actual environment values first). The selected categories apply even without `-Apply`; it remains accepted for backward compatibility:
 
 ```powershell
 .\windows\first-hour.ps1 -Apply -SetAccountPolicy -EnforceHostFirewall -ManagementRange '10.20.30.0/24' -DisableUsbStorage
@@ -39,7 +39,9 @@ Example apply (replace every example value with the actual environment values fi
 
 Options:
 
-- `-Apply`: execute requested changes. High-impact operations use PowerShell `ShouldProcess` confirmation; `-WhatIf` can be used to preview ShouldProcess actions.
+- Supplying any change-category switch applies the selected categories by default. With no category switches, the script remains audit-only.
+- `-PlanOnly`: report the selected changes without applying them. Cannot be combined with `-Apply`.
+- `-Apply`: explicit apply mode retained for backward compatibility. High-impact operations use PowerShell `ShouldProcess` confirmation; `-WhatIf` can be used to preview ShouldProcess actions.
 - `-SetAccountPolicy`: configure local policy on standalone hosts or the AD default domain policy on a domain controller/domain-joined host. Domain mode requires RSAT ActiveDirectory tools. Review domain-wide impact first.
 - `-EnforceHostFirewall -ManagementRange CIDR`: set Windows Firewall inbound defaults to Block and allow discovered listeners; RDP/WinRM access is scoped to supplied management ranges. Provide the actual admin range or remote management may be lost.
 - `-DisableLegacyProtocols`: disable SMBv1, LLMNR, and NetBIOS over TCP/IP. Some changes may need a reboot.
@@ -56,7 +58,7 @@ Options:
 Password rotation example for plan-only mode (replace names; do not assume these are safe targets):
 
 ```powershell
-.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount 'localadmin' -ExcludeAccount 'scoring' -ExcludeAccount 'breakglass'
+.\windows\first-hour.ps1 -PlanOnly -RotatePasswords -IncludeAccount 'localadmin' -ExcludeAccount 'scoring' -ExcludeAccount 'breakglass'
 ```
 
 ### Role scripts
