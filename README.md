@@ -208,15 +208,35 @@ After changes, inspect the report directory specified for the run. Reports may c
 
 ## Extra hardening switches (first-hour.ps1)
 
-- `-RequireSmbSigning` requires SMB signing on server and client. Old SMB clients/NAS may fail.
-- `-DisableSpooler` stops and disables Print Spooler.
-- `-ScopeSystemPorts` (with `-EnforceHostFirewall`) limits SMB/RPC/dynamic-port allows to `-ManagementRange` instead of Any.
-- `auto-harden.ps1` enables all three by default (`-ScopeSystemPorts` on non-servers only); use `-KeepSpooler` to skip the Spooler change.
+These apply by default when selected. Add `-PlanOnly` to preview. Each change is logged as `CHANGE` and verified after writing.
+
+| Switch | What it does | What can break |
+|---|---|---|
+| `-RequireSmbSigning` | Runs `Set-SmbServerConfiguration` and `Set-SmbClientConfiguration` with `-RequireSecuritySignature $true`, then re-reads both and fails if either is not required. | Old SMB clients, NAS devices, and unsigned third-party SMB tools can no longer connect. |
+| `-DisableSpooler` | Stops the Print Spooler service and sets it to Disabled, then verifies the startup type. Skipped if already stopped and disabled. Removes the PrintNightmare attack surface. | Printing stops until you run `Set-Service Spooler -StartupType Automatic; Start-Service Spooler`. |
+| `-ScopeSystemPorts` | Used with `-EnforceHostFirewall`. Allow rules for SMB/RPC/system ports (135, 137-139, 445, 5040, 5050, 5353, 7680, 1900, 3702) and dynamic RPC ports (49152+) use `-ManagementRange` as the remote address instead of `Any`. Rules for 3389, 5985 and 5986 were already scoped. | Machines outside the management range cannot reach those ports. Set `-ManagementRange` correctly first. |
+
+`auto-harden.ps1` enables `-RequireSmbSigning` and `-DisableSpooler` on every role, and `-ScopeSystemPorts` on non-servers only. Use `-KeepSpooler` to skip the Spooler change.
 
 ## Passwords and what to watch for
 
-Nothing rotates passwords automatically. To rotate, run:
-`.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount kali -ExcludeAccount scoring -ExcludeAccount breakglass`
-(needs typed confirmation). New passwords are written to `%LOCALAPPDATA%\CCDC\Reports\rotated-credentials-<stamp>.txt` (ACL-restricted). Record them securely, then delete the file.
+### Passwords
+Nothing rotates passwords automatically, so `auto-harden.ps1` never generates any. To rotate:
 
-After hardening: reboot (RunAsPPL), remember the local password (auto-logon is off), confirm scored services still work, and expect NTLMv1/old SMB clients to fail.
+```powershell
+.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount kali -ExcludeAccount scoring -ExcludeAccount breakglass
+```
+
+- At least one `-IncludeAccount` and two `-ExcludeAccount` values are required, and you must type a confirmation.
+- New passwords are written to `%LOCALAPPDATA%\CCDC\Reports\rotated-credentials-<stamp>.txt` (for example `C:\Users\kali\AppData\Local\CCDC\Reports`). The file is readable only by the current user and SYSTEM. A `password-rotation-ledger.txt` records what was rotated.
+- Record the passwords in your team's secure store, then delete the file.
+- Rotating the account you are logged in as is risky: write the new password down before logging out. Keep scoring and break-glass accounts excluded.
+
+### After a hardening run
+- **Reboot:** required for LSASS protection (RunAsPPL) to take effect.
+- **Auto-logon is turned off:** you must know the local account password to sign in again.
+- **Scored services:** confirm each still works after the firewall changes. Port 445 inbound is blocked unless allowed explicitly, and system/RPC ports are limited to the management range on workstations.
+- **Legacy auth:** LmCompatibilityLevel 5 means NTLMv1 clients fail; SMB signing means old SMB clients fail.
+- **Printing:** stops if the Spooler was disabled.
+- **Accounts:** `SecAdmin_Local` (the disabled built-in administrator) remains in the local Administrators group; review it.
+- **Logs and rollback:** reports, baselines and the firewall `.wfw` backup are in `%LOCALAPPDATA%\CCDC\Reports`, and a restore point is created before changes on workstations.
