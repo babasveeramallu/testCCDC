@@ -15,6 +15,18 @@ This directory contains Windows and Linux host audit/hardening scripts plus a Sp
 
 Run from an elevated Windows PowerShell 5.1 session. The role scripts load shared files from `windows\lib`; copy the entire `windows` directory and preserve its layout.
 
+### One-command auto-hardening
+
+Entry point: `windows\auto-harden.ps1` (elevated PowerShell). It detects the host (domain controller, IIS web, IIS FTP, workstation) and applies every applicable category without prompting: account policy, legacy protocols, USB storage, and a host firewall scoped to the local subnet(s), plus the matching role script switches. Each step runs separately, so one failure does not stop the rest.
+
+```powershell
+.\windows\auto-harden.ps1              # apply everything applicable
+.\windows\auto-harden.ps1 -PlanOnly    # preview only
+.\windows\auto-harden.ps1 -SkipFirewall -SkipUsb
+```
+
+Not automatic: password rotation, scheduled-task disabling, and `-RequireFtpTls` (needs a certificate). Take a snapshot first; a reboot may be required.
+
 ### General first-hour audit and hardening
 
 Entry point: `windows\first-hour.ps1`
