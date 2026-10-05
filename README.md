@@ -243,3 +243,24 @@ Nothing rotates passwords automatically, so `auto-harden.ps1` never generates an
 
 
 
+
+## Standalone hardening modules (`windows\lib\`)
+
+Each module runs on its own, in PowerShell 5.1 or 7+, as Administrator. All support:
+`-AuditOnly` (no changes; reports what would change), `-Force` (skip the typed `APPLY` prompt), `-OutputDirectory <path>` (logs/reports; ACL-locked to SYSTEM + Administrators).
+**Always run `-AuditOnly` first**, then apply.
+
+| Script | What it does |
+|---|---|
+| `harden-credentials.ps1` | Renames built-in Administrator to `SecAdmin_Local` (`-NewAdminName`), disables Guest, optional mass password rotation (`-RotateAllEnabledUsers -ExcludeUsers a,b`), LSA `RunAsPPL=1`, `LmCompatibilityLevel=5`, WDigest off, UAC `EnableLUA=1`/`ConsentPromptBehaviorAdmin=2`, disables PowerShell v2, Defender cloud protection. Rotated passwords go to an AES-256 encrypted `credstore-*.dat` (passphrase prompt); view with `-ShowCredentials`. Never rotates the current user or accounts used by services/password-logon tasks. |
+| `disable-legacy-protocols.ps1` | Disables SMB1 (feature + server config), LLMNR, NetBIOS over TCP/IP. Firewall: backs up first (`.wfw`), keeps ICMP echo (v4 and v6) allowed, allows listening scoring ports, scopes RDP/WinRM to `-ManagementSubnets`, then sets all profiles Enabled / inbound Block / outbound Allow. Extra ports: `-AllowTcpPorts`, `-AllowUdpPorts`; `-AllowSmb` keeps 139/445. |
+| `harden-ad.ps1` | Domain controllers only. Audits Kerberoastable accounts (SPNs), DES-only accounts and privileged group membership; LDAP signing (`LDAPServerIntegrity=2`) + channel binding (`-LdapChannelBinding`); AES-only Kerberos. `-ResetKrbtgt` does the double reset with typed confirmation (`RESET KRBTGT`, required even with `-Force`). |
+| `audit-windows-persistence.ps1` | Sweeps non-Microsoft scheduled tasks, Run/RunOnce, Winlogon, Startup folders, IFEO, WMI subscriptions, services outside System32/Program Files. Enables script block logging (4104) and transcription (`-TranscriptDirectory`). Saves a JSON summary object. |
+| `apply-gpo-baselines.ps1` | Backs up and imports a GPO backup with `LGPO.exe /g` (`-GpoBackupPath`, `-LgpoPath`), and sets Defender ASR rules (`-AsrMode Enabled|AuditMode|Warn`). |
+
+Notes:
+- "ICMP v4/v5" is implemented as ICMPv4 + ICMPv6 (there is no ICMP v5).
+- ASR GUIDs used are the ones Microsoft publishes: LSASS `9e6c4e1f-7d60-472f-ba1a-a39ef669e4b2`, email executable content `be9ba2d9-53ea-4cdc-84e5-9b1eeee46550`, Office child processes `d4f940ab-401b-4efc-aadc-ad5f3c50688a`.
+- Reboot needed for RunAsPPL, UAC, SMB1 and PowerShell v2 changes.
+- Scoring risks: `LDAPServerIntegrity=2` breaks unsigned LDAP binds; `LmCompatibilityLevel=5` breaks NTLMv1 clients; inbound Block drops any port not listening/allowed.
+
