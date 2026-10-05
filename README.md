@@ -70,7 +70,7 @@ Options:
 Password rotation example for plan-only mode (replace names; do not assume these are safe targets):
 
 ```powershell
-.\windows\first-hour.ps1 -PlanOnly -RotatePasswords -IncludeAccount 'localadmin' -ExcludeAccount 'scoring' -ExcludeAccount 'breakglass'
+.\windows\first-hour.ps1 -PlanOnly -RotatePasswords -IncludeAccount 'localadmin' -ExcludeAccount 'scoring','breakglass'
 ```
 
 ### Role scripts
@@ -240,4 +240,5 @@ Nothing rotates passwords automatically, so `auto-harden.ps1` never generates an
 - **Printing:** stops if the Spooler was disabled.
 - **Accounts:** `SecAdmin_Local` (the disabled built-in administrator) remains in the local Administrators group; review it.
 - **Logs and rollback:** reports, baselines and the firewall `.wfw` backup are in `%LOCALAPPDATA%\CCDC\Reports`, and a restore point is created before changes on workstations.
+
 
