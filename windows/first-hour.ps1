@@ -35,6 +35,7 @@ $script:LeftAlone = [System.Collections.Generic.List[string]]::new()
 . (Join-Path $PSScriptRoot 'lib\Common.ps1')
 . (Join-Path $PSScriptRoot 'lib\HostFirewall.ps1')
 . (Join-Path $PSScriptRoot 'lib\Hardening.ps1')
+. (Join-Path $PSScriptRoot 'lib\Obfuscation.ps1')
 . (Join-Path $PSScriptRoot 'lib\RestorePoint.ps1')
 . (Join-Path $PSScriptRoot 'lib\Sysinternals.ps1')
 . (Join-Path $PSScriptRoot 'lib\UsbStorage.ps1')
@@ -306,7 +307,7 @@ try {
         foreach ($user in $selected) {
             $password = New-RandomPassword
             if ($PSCmdlet.ShouldProcess($user.Name, 'Rotate local password (one-shot)')) {
-                Add-Content -LiteralPath $credentialPath -Value "$($user.Name)`t$password`tPENDING" -Encoding UTF8
+                Add-Content -LiteralPath $credentialPath -Value "$($user.Name)`t$(ConvertTo-CCDCObfuscated $password)`tPENDING" -Encoding UTF8
                 try {
                     Add-Content -LiteralPath $ledger -Value $user.SID.Value -Encoding UTF8
                     Set-LocalUser -Name $user.Name -Password (ConvertTo-SecureString $password -AsPlainText -Force)
@@ -338,5 +339,6 @@ try {
     if ($script:Report) { Write-Log ERROR $message } else { Write-Error $message }
     exit 1
 }
+
 
 

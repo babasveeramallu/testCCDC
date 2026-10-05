@@ -34,7 +34,7 @@ Entry point: `windows\first-hour.ps1`
 Audit only:
 
 ```powershell
-.\windows\first-hour.ps1his
+.\windows\first-hour.ps1
 ```
 
 Plan selected changes without applying:
@@ -229,7 +229,7 @@ Nothing rotates passwords automatically, so `auto-harden.ps1` never generates an
 
 - At least one `-IncludeAccount` and two `-ExcludeAccount` values are required, and you must type a confirmation.
 - New passwords are written to `%LOCALAPPDATA%\CCDC\Reports\rotated-credentials-<stamp>.txt` (for example `C:\Users\kali\AppData\Local\CCDC\Reports`). The file is readable only by the current user and SYSTEM. A `password-rotation-ledger.txt` records what was rotated.
-- Record the passwords in your team's secure store, then delete the file.
+- Passwords in the file are obfuscated (XOR + Base64, prefixed `obf:`), so they are not readable at a glance. This is obfuscation, not encryption: anyone with the scripts can decode it. View them on screen with `.\windows\Show-RotatedCredentials.ps1` (latest file, or pass `-Path`). Record them in your team's secure store, then delete the file.
 - Rotating the account you are logged in as is risky: write the new password down before logging out. Keep scoring and break-glass accounts excluded.
 
 ### After a hardening run
@@ -240,5 +240,6 @@ Nothing rotates passwords automatically, so `auto-harden.ps1` never generates an
 - **Printing:** stops if the Spooler was disabled.
 - **Accounts:** `SecAdmin_Local` (the disabled built-in administrator) remains in the local Administrators group; review it.
 - **Logs and rollback:** reports, baselines and the firewall `.wfw` backup are in `%LOCALAPPDATA%\CCDC\Reports`, and a restore point is created before changes on workstations.
+
 
 
