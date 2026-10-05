@@ -34,7 +34,7 @@ Entry point: `windows\first-hour.ps1`
 Audit only:
 
 ```powershell
-.\windows\first-hour.ps1
+.\windows\first-hour.ps1his
 ```
 
 Plan selected changes without applying:
@@ -59,7 +59,7 @@ Options:
 - `-DisableLegacyProtocols`: disable SMBv1, LLMNR, and NetBIOS over TCP/IP. Some changes may need a reboot.
 - `-DisableUsbStorage`: disable the USB mass-storage driver; it does not block every USB device class.
 - `-KillPersistence -DisableTask '\TaskPath\TaskName'`: disable only exact named scheduled tasks. Repeat `-DisableTask` for multiple tasks; built-in Microsoft tasks are refused.
-- `-RotatePasswords -IncludeAccount NAME -ExcludeAccount NAME -ExcludeAccount NAME`: rotate only explicitly selected local accounts. Use at least two distinct exclusions for scoring/service/break-glass accounts. Each selected account is rechecked for service/task use and requires typed confirmation.
+- `-RotatePasswords -IncludeAccount NAME -ExcludeAccount NAME,NAME`: rotate only explicitly selected local accounts. Use at least two distinct exclusions for scoring/service/break-glass accounts. Each selected account is rechecked for service/task use and requires typed confirmation.
 - `-RotateBuiltInAdministrator`: also permits rotating the built-in Administrator, only when explicitly included; it is processed last.
 - `-AllowPasswordRerotation`: manually override the one-shot rotation ledger; requires a second typed confirmation.
 - `-InstallSysmon -SysinternalsPath PATH -SysmonConfig FILE`: install or update Sysmon using a valid XML config. The script checks that the binary has a valid Microsoft signature and verifies the service after apply. Sysmon is not installed unless this switch is given.
@@ -224,7 +224,7 @@ These apply by default when selected. Add `-PlanOnly` to preview. Each change is
 Nothing rotates passwords automatically, so `auto-harden.ps1` never generates any. To rotate:
 
 ```powershell
-.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount kali -ExcludeAccount scoring -ExcludeAccount breakglass
+.\windows\first-hour.ps1 -RotatePasswords -IncludeAccount kali -ExcludeAccount scoring,breakglass
 ```
 
 - At least one `-IncludeAccount` and two `-ExcludeAccount` values are required, and you must type a confirmation.
@@ -240,3 +240,4 @@ Nothing rotates passwords automatically, so `auto-harden.ps1` never generates an
 - **Printing:** stops if the Spooler was disabled.
 - **Accounts:** `SecAdmin_Local` (the disabled built-in administrator) remains in the local Administrators group; review it.
 - **Logs and rollback:** reports, baselines and the firewall `.wfw` backup are in `%LOCALAPPDATA%\CCDC\Reports`, and a restore point is created before changes on workstations.
+
