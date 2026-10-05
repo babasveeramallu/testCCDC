@@ -266,7 +266,10 @@ try {
                     Write-Log SKIP "Skip ${name}: used by running service(s) $($serviceUsers.Name -join ', ')."
                     continue
                 }
-                $taskUsers = @(Get-ScheduledTask | Where-Object { $_.Principal.UserId -match "(^|\\)$escapedName$" })
+                $acctTasks = @(Get-ScheduledTask | Where-Object { $_.Principal.UserId -match "(^|\\)$escapedName$" })
+                $taskUsers = @($acctTasks | Where-Object { $_.Principal.LogonType -eq 'Password' })
+                $interactiveTasks = @($acctTasks | Where-Object { $_.Principal.LogonType -ne 'Password' })
+                if ($interactiveTasks.Count) { Write-Log INFO "Account ${name} has interactive-logon task(s) that store no password and are not blocking: $($interactiveTasks.TaskName -join ', ')." }
                 if ($taskUsers.Count) {
                     Write-Log SKIP "Skip ${name}: scheduled task(s) use this account: $($taskUsers.TaskName -join ', ')."
                     continue
@@ -335,4 +338,5 @@ try {
     if ($script:Report) { Write-Log ERROR $message } else { Write-Error $message }
     exit 1
 }
+
 
